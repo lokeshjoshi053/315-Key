@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+*.tsbuildinfo
+coverage/
+.DS_Store
+# personal / client files
+*.xlsx
+*.pdf
+!docs/API_REFERENCE.pdf

@@ -1,0 +1,22 @@
+# Local dev: Postgres + S3 mock + API. `docker compose up --build`
+services:
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_DB: plots315, POSTGRES_USER: plots315, POSTGRES_PASSWORD: plots315 }
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U plots315"], interval: 5s, retries: 10 }
+  s3:
+    image: adobe/s3mock:3.11.0   # local S3 stand-in; use real S3/R2 in prod
+    environment: { initialBuckets: plots315-docs }
+    ports: ["9090:9090"]
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://plots315:plots315@db:5432/plots315
+      S3_ENDPOINT: http://s3:9090
+    ports: ["3000:3000"]
+    depends_on: { db: { condition: service_healthy } }
+volumes:
+  pgdata:
