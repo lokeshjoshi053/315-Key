@@ -1,0 +1,60 @@
+{
+  "family": "plots315-api",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "runtimePlatform": { "cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX" },
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/plots315-ecs-execution",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/plots315-ecs-task",
+  "containerDefinitions": [
+    {
+      "name": "api",
+      "image": "replaced-by-ci",
+      "essential": true,
+      "portMappings": [{ "containerPort": 3000, "protocol": "tcp" }],
+      "environment": [
+        { "name": "APP_ENV", "value": "prod" },
+        { "name": "PORT", "value": "3000" },
+        { "name": "DB_SSL", "value": "verify" },
+        { "name": "DB_POOL_SIZE", "value": "10" },
+        { "name": "MIGRATE_ON_START", "value": "true" },
+        { "name": "JOBS_ENABLED", "value": "true" },
+        { "name": "SWAGGER_ENABLED", "value": "false" },
+        { "name": "OTP_PROVIDER", "value": "msg91" },
+        { "name": "REFERRAL_LINK_BASE", "value": "https://315plots.app/r/" },
+        { "name": "S3_BUCKET", "value": "plots315-docs" },
+        { "name": "S3_REGION", "value": "ap-south-1" },
+        { "name": "CASHFREE_BASE_URL", "value": "https://api.cashfree.com/payout" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/plots315/prod/DATABASE_URL" },
+        { "name": "JWT_SECRET", "valueFrom": "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/plots315/prod/JWT_SECRET" },
+        { "name": "CRYPTO_KEY", "valueFrom": "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/plots315/prod/CRYPTO_KEY" },
+        { "name": "BOOTSTRAP_ADMIN_MOBILE", "valueFrom": "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/plots315/prod/BOOTSTRAP_ADMIN_MOBILE" },
+        { "name": "MSG91_AUTH_KEY", "valueFrom": "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/plots315/prod/MSG91_AUTH_KEY" },
+        { "name": "MSG91_TEMPLATE_ID", "valueFrom": "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/plots315/prod/MSG91_TEMPLATE_ID" },
+        { "name": "RAZORPAY_KEY_ID", "valueFrom": "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/plots315/prod/RAZORPAY_KEY_ID" },
+        { "name": "RAZORPAY_KEY_SECRET", "valueFrom": "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/plots315/prod/RAZORPAY_KEY_SECRET" },
+        { "name": "RAZORPAY_WEBHOOK_SECRET", "valueFrom": "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/plots315/prod/RAZORPAY_WEBHOOK_SECRET" },
+        { "name": "FCM_CREDENTIALS_JSON", "valueFrom": "arn:aws:ssm:ap-south-1:<ACCOUNT_ID>:parameter/plots315/prod/FCM_CREDENTIALS_JSON" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/plots315-api",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "api"
+        }
+      },
+      "stopTimeout": 30
+    }
+  ]
+}

@@ -18,9 +18,8 @@ export class Push {
   private readonly messaging: Messaging | null;
 
   constructor(@Inject(CONFIG) cfg: Config) {
-    this.messaging = cfg.fcmCredentialsFile
-      ? getMessaging(initializeApp({ credential: cert(JSON.parse(readFileSync(cfg.fcmCredentialsFile, 'utf8'))) }))
-      : null;
+    const json = cfg.fcmCredentialsJson || (cfg.fcmCredentialsFile ? readFileSync(cfg.fcmCredentialsFile, 'utf8') : '');
+    this.messaging = json ? getMessaging(initializeApp({ credential: cert(JSON.parse(json)) })) : null;
   }
 
   /** Returns tokens FCM reports as dead, so the caller can delete them. */

@@ -41,6 +41,7 @@ export function loadConfig() {
       secretKey: opt('S3_SECRET_KEY'),
     },
     fcmCredentialsFile: opt('FCM_CREDENTIALS_FILE'),
+    fcmCredentialsJson: opt('FCM_CREDENTIALS_JSON'), // the key JSON itself; preferred on ECS (from SSM)
     jobsEnabled: opt('JOBS_ENABLED', 'true') === 'true',
   };
   if (c.jwtSecret.length < 32) throw new Error('JWT_SECRET must be at least 32 characters');

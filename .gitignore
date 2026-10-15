@@ -8,3 +8,6 @@ coverage/
 *.xlsx
 *.pdf
 !docs/API_REFERENCE.pdf
+# credentials
+*firebase-adminsdk*.json
+*service-account*.json

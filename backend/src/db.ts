@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { Pool, PoolClient, types } from 'pg';
+import { Pool, PoolClient, PoolConfig, types } from 'pg';
 import { CONFIG, Config } from './config';
 
 // int8 → number. Money is integer paise; 2^53 paise ≈ ₹90 trillion, so no precision risk.
@@ -9,6 +9,18 @@ types.setTypeParser(20, (v) => Number(v));
 types.setTypeParser(1700, (v) => Number(v));
 
 export type Queryable = Pool | PoolClient;
+
+/**
+ * DB_SSL: off (local docker) | verify (RDS / managed PG; checks the server cert against DB_SSL_CA)
+ * | no-verify (encrypted but unchecked; avoid in prod).
+ */
+export function poolConfig(connectionString: string, max = 10): PoolConfig {
+  const mode = process.env.DB_SSL ?? 'off';
+  if (mode === 'off') return { connectionString, max };
+  if (mode === 'no-verify') return { connectionString, max, ssl: { rejectUnauthorized: false } };
+  const caFile = process.env.DB_SSL_CA || join(__dirname, '..', 'certs', 'rds-global-bundle.pem');
+  return { connectionString, max, ssl: { rejectUnauthorized: true, ca: readFileSync(caFile, 'utf8') } };
+}
 
 const camel = (s: string) => s.replace(/_([a-z0-9])/g, (_, ch: string) => ch.toUpperCase());
 function camelize<T>(row: Record<string, unknown>): T {
@@ -22,7 +34,7 @@ export class Db implements OnModuleDestroy {
   readonly pool: Pool;
 
   constructor(@Inject(CONFIG) cfg: Config) {
-    this.pool = new Pool({ connectionString: cfg.databaseUrl, max: cfg.dbPoolSize });
+    this.pool = new Pool(poolConfig(cfg.databaseUrl, cfg.dbPoolSize));
   }
 
   async many<T>(sql: string, params: unknown[] = [], q: Queryable = this.pool): Promise<T[]> {
