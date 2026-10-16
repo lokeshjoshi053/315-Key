@@ -18,6 +18,7 @@ import { PaymentGateway, RazorpayGateway } from './payment/gateway';
 import { PaymentController, PaymentService, PaymentWebhookController } from './payment/payments';
 import { CashfreeGateway, PayoutController, PayoutGateway, PayoutService, PayoutWebhookController } from './payout/payouts';
 import { PlotsController, PlotsService } from './plots/plots';
+import { CronController } from './cron';
 import { MeController, PartnerController, UsersService } from './users/users';
 
 @Public()
@@ -62,6 +63,7 @@ class HealthController {
     DocumentsController,
     NotificationsController,
     AdminController,
+    CronController,
   ],
   providers: [
     { provide: CONFIG, useFactory: loadConfig },

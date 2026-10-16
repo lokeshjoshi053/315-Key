@@ -30,7 +30,8 @@ export async function configureApp(app: Awaited<ReturnType<typeof NestFactory.cr
   return app;
 }
 
-async function bootstrap() {
+/** Fully configured app, not yet listening. Shared by the server (bootstrap) and serverless entry. */
+export async function createApp() {
   const cfg = loadConfig();
   // rawBody: webhook signatures are computed over the exact bytes received.
   const app = await NestFactory.create(AppModule, { rawBody: true });
@@ -44,7 +45,12 @@ async function bootstrap() {
     const doc = SwaggerModule.createDocument(app, swaggerConfig());
     SwaggerModule.setup('docs', app, doc, { swaggerOptions: { persistAuthorization: true } });
   }
+  return app;
+}
 
+async function bootstrap() {
+  const cfg = loadConfig();
+  const app = await createApp();
   await app.listen(cfg.port);
   new Logger('main').log(`315 PLOTS API on :${cfg.port} (${cfg.env})`);
 }

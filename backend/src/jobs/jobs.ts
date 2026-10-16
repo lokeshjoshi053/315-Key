@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { CONFIG, Config } from '../config';
 import { Db, Queryable } from '../db';
+import { schedulersOff } from '../common/support';
 
 export interface JobHandler {
   readonly type: string;
@@ -39,7 +40,7 @@ export class Jobs {
 
   @Interval(2000)
   async drain() {
-    if (this.running || !this.cfg.jobsEnabled) return;
+    if (this.running || !this.cfg.jobsEnabled || schedulersOff()) return;
     this.running = true;
     try {
       for (let i = 0; i < 20 && (await this.runOne()); i++);

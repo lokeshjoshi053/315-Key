@@ -6,7 +6,7 @@ import { PoolClient } from 'pg';
 import { Db } from '../db';
 import { AuthUser, CurrentUser } from '../common/auth';
 import { badRequest, conflict, notFound, PageQuery, providerError, unavailable } from '../common/http';
-import { LOCKS, Refs, Settings, tryXactLock } from '../common/support';
+import { LOCKS, Refs, schedulersOff, Settings, tryXactLock } from '../common/support';
 import { Jobs } from '../jobs/jobs';
 import { BookingForLedger, LedgerService } from '../ledger/ledger';
 import { NotificationService } from '../notify/notifications';
@@ -69,6 +69,16 @@ export class BookingService {
     if (!(await this.settings.bool('bookings_enabled'))) throw unavailable('BOOKINGS_PAUSED', 'Bookings are paused, try later');
 
     const held = await this.db.tx(async (c) => {
+      // A lapsed checkout of this user's is expired here, so nobody waits on the hold-expiry job.
+      const lapsed = await this.db.many<{ plotId: string }>(
+        `update booking set status = 'EXPIRED', updated_at = now()
+         where user_id = $1 and status = 'PENDING_PAYMENT' and hold_expires_at < now() returning plot_id`,
+        [userId],
+        c,
+      );
+      if (lapsed.length) {
+        await c.query(`update plot set status = 'AVAILABLE', held_until = null, updated_at = now() where id = any($1) and status = 'HELD' and held_until < now()`, [lapsed.map((l) => l.plotId)]);
+      }
       const pending = await this.db.maybe('select 1 from booking where user_id = $1 and status = $2', [userId, 'PENDING_PAYMENT'], c);
       if (pending) throw conflict('PENDING_BOOKING_EXISTS', 'Finish or cancel your current checkout first');
 
@@ -200,7 +210,8 @@ export class BookingService {
 
   /** Lapsed holds free their plots (AC-7: within 1 minute). */
   @Interval(30_000)
-  async expireHolds() {
+  async expireHolds(force = false) {
+    if (!force && schedulersOff()) return;
     await this.db.tx(async (c) => {
       if (!(await tryXactLock(c, LOCKS.holdExpiry))) return;
       const expired = await this.db.many<{ plotId: string }>(

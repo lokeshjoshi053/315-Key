@@ -89,6 +89,10 @@ const profile = (token, name) => call('PUT', '/me', { token, body: { name, email
     eq(r.status, 401, 'status');
     assert(r.body.code && r.body.requestId, 'envelope');
   });
+  await step('cron endpoints reject calls without the secret', async () => {
+    eq((await call('GET', '/internal/cron/minute')).status, 401, 'no auth');
+    eq((await call('GET', '/internal/cron/daily', { headers: { authorization: 'Bearer wrong' } })).status, 401, 'wrong secret');
+  });
   await step('validation: bad mobile → 400 VALIDATION_FAILED', async () => {
     const r = await call('POST', '/auth/otp/request', { body: { mobile: '12345' } });
     eq(r.status, 400, 'status');

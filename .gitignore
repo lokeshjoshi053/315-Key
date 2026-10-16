@@ -11,3 +11,4 @@ coverage/
 # credentials
 *firebase-adminsdk*.json
 *service-account*.json
+*.dmg

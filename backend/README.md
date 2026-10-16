@@ -24,7 +24,8 @@ Or, without Docker for the API: `npm ci && npm run start:dev` (needs `DATABASE_U
 npm test                        # pure money math (commission, deductions, 70:30 matching)
 npm run test:e2e                # real Postgres via Testcontainers: booking race, webhook idempotency,
                                 # commission amounts, reversal, authz, OTP + refresh-token reuse
-npm run test:live               # 63 checks over HTTP against the built API with Postgres, an S3 mock
+npm run test:live               # 64 checks over HTTP against the built API (long-running server mode)
+npm run test:live:serverless    # same 64 checks through the Vercel entry (api/index.js) + simulated Vercel Cron
                                 # and mock Razorpay/Cashfree: every endpoint and money flow
 ```
 Colima users should prefix the e2e command with `DOCKER_HOST=unix://$HOME/.colima/default/docker.sock TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock TESTCONTAINERS_RYUK_DISABLED=true`.

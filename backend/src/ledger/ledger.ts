@@ -6,7 +6,7 @@ import { PoolClient } from 'pg';
 import { Db } from '../db';
 import { AuthUser, CurrentUser } from '../common/auth';
 import { notFound, PageQuery } from '../common/http';
-import { LOCKS, Settings, tryXactLock } from '../common/support';
+import { LOCKS, schedulersOff, Settings, tryXactLock } from '../common/support';
 import { NotificationService } from '../notify/notifications';
 import { UsersService } from '../users/users';
 import { commissionFor, Deductions, matchVolume, split, Upline } from './math';
@@ -165,7 +165,8 @@ export class LedgerService {
 
   /** PENDING → ELIGIBLE after the cooling period, while the source booking is still confirmed. */
   @Interval(10 * 60 * 1000)
-  async promoteEligible() {
+  async promoteEligible(force = false) {
+    if (!force && schedulersOff()) return;
     await this.db.tx(async (c) => {
       if (!(await tryXactLock(c, LOCKS.eligibility))) return;
       const days = await this.settings.int('cooling_days', c);
@@ -184,7 +185,8 @@ export class LedgerService {
 
   /** Daily 70:30 matching run (01:30 IST). */
   @Cron('0 30 1 * * *', { timeZone: 'Asia/Kolkata' })
-  async runMatching() {
+  async runMatching(force = false) {
+    if (!force && schedulersOff()) return;
     await this.db.tx(async (c) => {
       if (!(await tryXactLock(c, LOCKS.matching))) return;
       const power = await this.settings.int('matching_power_pct', c);

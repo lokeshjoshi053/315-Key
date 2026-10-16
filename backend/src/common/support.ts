@@ -88,4 +88,7 @@ export async function tryXactLock(c: PoolClient, key: number): Promise<boolean> 
   return (await c.query('select pg_try_advisory_xact_lock($1) as ok', [key])).rows[0].ok;
 }
 
+/** SCHEDULERS=off on serverless (Vercel): timers don't run there, Vercel Cron calls /internal/cron/* instead. */
+export const schedulersOff = () => process.env.SCHEDULERS === 'off';
+
 export const LOCKS = { holdExpiry: 1, eligibility: 2, matching: 3 } as const;
