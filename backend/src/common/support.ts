@@ -19,8 +19,13 @@ export class Crypto {
   private readonly key: Buffer;
 
   constructor(@Inject(CONFIG) cfg: Config) {
-    this.key = Buffer.from(cfg.cryptoKey, 'base64');
-    if (this.key.length !== 32) throw new Error('CRYPTO_KEY must be 32 bytes, base64-encoded');
+    const raw = cfg.cryptoKey.trim().replace(/^['"]|['"]$/g, '');
+    this.key = Buffer.from(raw, 'base64');
+    if (this.key.length !== 32) {
+      throw new Error(
+        `CRYPTO_KEY must be 32 bytes, base64-encoded (44 characters, e.g. from "openssl rand -base64 32"); got ${raw.length} characters decoding to ${this.key.length} bytes`,
+      );
+    }
   }
 
   encrypt(plain: string): Buffer {
