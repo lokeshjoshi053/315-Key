@@ -12,3 +12,5 @@ coverage/
 *firebase-adminsdk*.json
 *service-account*.json
 *.dmg
+.amplify-hosting/
+BUILD.txt

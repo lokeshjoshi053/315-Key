@@ -1,16 +1,12 @@
 version: 1
-
+# AWS Amplify Hosting, Web Compute: the app's platform must be WEB_COMPUTE (see backend/deploy/AMPLIFY.md).
 frontend:
   phases:
-    preBuild:
-      commands:
-        - cd backend
-        - npm ci
     build:
       commands:
-        - npm run build
+        - bash backend/deploy/amplify/build.sh
   artifacts:
-    baseDirectory: backend/dist
+    baseDirectory: .amplify-hosting
     files:
       - '**/*'
   cache:

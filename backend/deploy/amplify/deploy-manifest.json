@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "framework": { "name": "nestjs", "version": "10.0.0" },
+  "routes": [
+    {
+      "path": "/*",
+      "target": { "kind": "Compute", "src": "default" }
+    }
+  ],
+  "computeResources": [
+    {
+      "name": "default",
+      "runtime": "nodejs20.x",
+      "entrypoint": "server.js"
+    }
+  ]
+}
