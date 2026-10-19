@@ -9,7 +9,7 @@ export function loadConfig() {
   const c = {
     env: opt('APP_ENV', 'dev'),
     port: Number(opt('PORT', '3000')),
-    databaseUrl: req('DATABASE_URL'),
+    databaseUrl: req('DATABASE_URL').replace(/\s+/g, ''), // a URL never contains spaces; strip pasted ones
     dbPoolSize: Number(opt('DB_POOL_SIZE', '10')),
     jwtSecret: req('JWT_SECRET'),
     accessTtlSec: 15 * 60,
