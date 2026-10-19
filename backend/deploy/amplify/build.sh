@@ -8,6 +8,22 @@ ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 OUT="$ROOT/.amplify-hosting"
 FN="$OUT/compute/default"
 
+# Fail the build (not the live app) when required settings are missing or malformed.
+node -e '
+const e = process.env, bad = [];
+const ck = (e.CRYPTO_KEY || "").trim();
+if (Buffer.from(ck, "base64").length !== 32)
+  bad.push(`CRYPTO_KEY: must be 44 characters from "openssl rand -base64 32" (got ${ck.length} characters)`);
+if ((e.JWT_SECRET || "").length < 32) bad.push(`JWT_SECRET: must be at least 32 characters (got ${(e.JWT_SECRET || "").length})`);
+if (!e.DATABASE_URL) bad.push("DATABASE_URL: not set");
+if (e.APP_ENV === "prod" && (e.OTP_PROVIDER || "log") === "log") bad.push("OTP_PROVIDER: must be msg91 when APP_ENV=prod");
+if (bad.length) {
+  console.error("Amplify environment variables are not set correctly (Hosting > Environment variables):\n  - " + bad.join("\n  - "));
+  process.exit(1);
+}
+console.log("environment variables OK");
+'
+
 cd "$ROOT/backend"
 npm ci
 npm run build
