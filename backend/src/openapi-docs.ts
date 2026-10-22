@@ -278,7 +278,7 @@ export const OPS: Record<string, OpDoc> = {
     ok: {
       description: 'Plans',
       example: [
-        { ...tier, id: TIER, code: 'EXPRESS', name: 'Express Token', amountPaise: 2100000, l1Bps: 1000, l2Bps: 500, l3Bps: 500 },
+        { ...tier, id: 'a3c5e7f9-1b2d-4f6a-8c0e-2d4f6a8c0e11', code: 'EXPRESS', name: 'Express Token', amountPaise: 2100000, l1Bps: 1000, l2Bps: 500, l3Bps: 500 },
         tier,
       ],
     },

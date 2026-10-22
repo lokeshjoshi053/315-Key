@@ -64,6 +64,28 @@ Partner capability is a **status on USER**, not a role (C6).
 - 6.4 Refund or cancellation of a booking writes `REVERSED` entries for all derived commission and matching.
 - 6.5 **Commission per (booking, beneficiary, level) is unique.**
 
+**Levels.** Level 1 (L1) is the buyer's direct sponsor (the partner whose referral code or lead brought them in). Level 2 (L2) is L1's sponsor. Level 3 (L3) is L2's sponsor. Nothing is paid above Level 3.
+
+**Commission percentage per level, by booking plan** (from the business plan; stored per plan in `tier.l1_bps / l2_bps / l3_bps`, 100 bps = 1%, and snapshotted on each booking):
+
+| Plan | Booking amount | Level 1 | Level 2 | Level 3 | Total gross |
+| --- | --- | --- | --- | --- | --- |
+| Express Token | ₹21,000 | 10% (₹2,100) | 5% (₹1,050) | 5% (₹1,050) | 20% (₹4,200) |
+| Advance Token | ₹71,000 | 15% (₹10,650) | 5% (₹3,550) | 5% (₹3,550) | 25% (₹17,750) |
+| Silver | ₹1,51,000 | 15% (₹22,650) | 10% (₹15,100) | 10% (₹15,100) | 35% (₹52,850) |
+| Gold | ₹3,00,000 | 20% (₹60,000) | 10% (₹30,000) | 10% (₹30,000) | 40% (₹1,20,000) |
+| Platinum | ₹6,51,000 | 25% (₹1,62,750) | 15% (₹97,650) | 10% (₹65,100) | 50% (₹3,25,500) |
+
+**Worked example (Gold, ₹3,00,000)**, deductions per 6.2 (20% admin + 5% TDS on gross):
+
+| Level | Partner | Gross | Admin 20% | TDS 5% | Net paid |
+| --- | --- | --- | --- | --- | --- |
+| Level 1 | Direct sponsor | ₹60,000 | ₹12,000 | ₹3,000 | ₹45,000 |
+| Level 2 | Sponsor's sponsor | ₹30,000 | ₹6,000 | ₹1,500 | ₹22,500 |
+| Level 3 | Next one up | ₹30,000 | ₹6,000 | ₹1,500 | ₹22,500 |
+
+If Level 2 is not an approved partner at that moment, Level 2 gets nothing and Level 3 still gets its own 10% (no compression, A-3). Verified by the unit and live tests (`src/ledger/math.spec.ts`, live suite "commission: C L1 ₹60,000 …").
+
 ### FR-7 Matching (70:30)
 - 7.1 Each partner has left and right volume (see A-4 for leg assignment).
 - 7.2 A verified booking adds `amount` to the relevant leg of every upline.
