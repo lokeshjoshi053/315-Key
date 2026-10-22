@@ -19,6 +19,7 @@ import { PaymentController, PaymentService, PaymentWebhookController } from './p
 import { CashfreeGateway, PayoutController, PayoutGateway, PayoutService, PayoutWebhookController } from './payout/payouts';
 import { PlotsController, PlotsService } from './plots/plots';
 import { CronController } from './cron';
+import { AppV1AdminController, AppV1AgentController, AppV1AuthController, AppV1CustomerController, AppV1Mapper } from './app-v1/app-v1';
 import { MeController, PartnerController, UsersService } from './users/users';
 
 @Public()
@@ -64,6 +65,10 @@ class HealthController {
     NotificationsController,
     AdminController,
     CronController,
+    AppV1AuthController,
+    AppV1CustomerController,
+    AppV1AgentController,
+    AppV1AdminController,
   ],
   providers: [
     { provide: CONFIG, useFactory: loadConfig },
@@ -93,6 +98,7 @@ class HealthController {
     BookingService,
     PaymentService,
     PayoutService,
+    AppV1Mapper,
   ],
 })
 export class AppModule {}

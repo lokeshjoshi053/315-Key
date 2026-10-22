@@ -4,10 +4,11 @@
  * missing here, so a new endpoint cannot ship undocumented (checked by `npm run openapi` and tests).
  */
 import type { OpenAPIObject } from '@nestjs/swagger';
+import { APP_V1_OPS } from './app-v1/app-v1-docs';
 
-type ErrorCase = [status: number, code: string, message: string];
+export type ErrorCase = [status: number, code: string, message: string];
 
-interface OpDoc {
+export interface OpDoc {
   summary: string;
   description?: string;
   /** Adds page/size query parameters. */
@@ -462,6 +463,7 @@ export const OPS: Record<string, OpDoc> = {
   },
   'GET /admin/audit': { paged: true, summary: 'Audit log', description: 'Every admin change with before/after values. Filters: entity (plot, tier, user, booking, ledger_entry, payout, document, app_config), entityId.', ok: { description: 'Audit entries', example: page([{ id: 1042, actorId: U2, actorName: 'Admin', action: 'PARTNER_APPROVE', entity: 'user', entityId: U1, before: { partnerStatus: 'PENDING' }, after: { partnerStatus: 'APPROVED' }, createdAt: TS }]) } },
   'GET /admin/jobs': { paged: true, summary: 'Background jobs', description: 'Queued work (push notifications, refunds). dead=true lists jobs that failed 8 times.', ok: { description: 'Jobs', example: page([{ id: 88, type: 'PUSH', payload: { id: NT }, runAt: TS, attempts: 8, lastError: 'messaging/invalid-argument', doneAt: TS, dead: true }]) } },
+  ...APP_V1_OPS,
   'POST /admin/jobs/{id}/retry': { status: 201, summary: 'Retry a failed job', ok: { description: 'Requeued', example: ok }, errors: [nf('Dead job')] },
 };
 
@@ -479,6 +481,7 @@ const TAGS = [
   { name: 'Admin', description: 'Operations for ADMIN accounts only. Every change is audit-logged.' },
   { name: 'Webhooks', description: 'Server-to-server callbacks from Razorpay and Cashfree. Not for the app.' },
   { name: 'System', description: 'Health check.' },
+  { name: 'App v1', description: 'Endpoints in the exact shape the 315 PLOTS Kotlin app expects (ApiConfig.Endpoints), under /api/v1. Amounts are pre-formatted for display.' },
 ];
 
 const DESCRIPTION = `Backend for the 315 PLOTS mobile app.

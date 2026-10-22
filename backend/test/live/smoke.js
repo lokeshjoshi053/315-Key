@@ -499,6 +499,147 @@ const profile = (token, name) => call('PUT', '/me', { token, body: { name, email
     eq((await call('POST', '/auth/refresh', { body: { refreshToken: t.refreshToken } })).status, 401, 'refresh after logout');
   });
 
+
+  // ---------- mobile app API (v1): exact Kotlin model shapes ----------
+  const MODEL = {
+    Plot: ['id','title','block','facing','location','sizeSqFt','pricePerSqFt','roadWidth','totalPriceFormatted','status','imageUrl','latitude','longitude','mapOffsetX','mapOffsetY'],
+    BookingPlan: ['id','name','amount','amountFormatted','isPopular'],
+    Booking: ['plotId','plotTitle','block','location','sizeSqFt','planName','amountFormatted','orderId','txnId','stepText','stepSummary','milestones'],
+    Milestone: ['step','title','subtitle','status','badgeLabel'],
+    PaymentItem: ['id','amountFormatted','dateOrSubtitle','statusBadge'],
+    DocumentItem: ['id','title','subtitle','statusBadge','isActionNeeded'],
+    NotificationItem: ['id','title','timeAgo','iconType'],
+    UserProfile: ['fullName','phone','email','nomineeName','roleTitle'],
+    ReferrerInfo: ['agentCode','agentName','agentRole','customerName','customerStatus'],
+    DashboardStats: ['leadsCount','activeLeadsCount','bookingsCount','netCommission','payoutDue','matchedVolume'],
+    PartnerProfile: ['fullName','phone','email','agentCode','referralLink','roleTitle','status','panDocument','bankAccount'],
+    Lead: ['id','name','phone','plotInterested','statusBadge','subtitle'],
+    NetworkLevel: ['level','membersCount'],
+    TreeNode: ['id','name','subtitle','badgeText','level','children'],
+    CommissionItem: ['id','title','source','levelRate','gross','adminDeduction','tdsDeduction','net','statusBadge'],
+    MatchingSummary: ['powerLeg','weakerLeg','matchedVolume','matchedVolShort','gross50','admin20','net'],
+    PayoutInfo: ['bankName','isVerified','nextPayoutAmount','scheduledDate'],
+    AgentNotification: ['id','title','timeAgo','type'],
+    AdminOverviewStats: ['totalPlots','plotsSold','plotsAvailable','activePartners','pendingApprovals','totalRevenue','pendingPayouts'],
+    AdminApprovalItem: ['id','type','title','subtitle','status','submittedAt'],
+    AdminActivityLog: ['id','title','description','timeAgo'],
+    AdminPayoutRequest: ['id','agentName','agentCode','amount','bankDetails','period','status'],
+    AuthResult: ['success','token','role','errorMessage'],
+  };
+  const shape = (obj, model) => {
+    const missing = MODEL[model].filter((k) => !(k in obj) || obj[k] === undefined);
+    assert(!missing.length, `${model} missing ${missing.join(', ')}`);
+    const nulls = MODEL[model].filter((k) => obj[k] === null && !['token', 'role', 'errorMessage'].includes(k));
+    assert(!nulls.length, `${model} has null ${nulls.join(', ')} (Kotlin non-null)`);
+  };
+  const v1 = (m, p, opts) => call(m, '/api/v1' + p, opts);
+  const v1login = async (mobile, extra = {}) => {
+    const r = ok(await v1('POST', '/auth/send-otp', { body: { phone: mobile } }));
+    eq(r.success, true, 'send-otp success');
+    await sleep(150);
+    const code = [...readFileSync(LOG, 'utf8').matchAll(new RegExp(`DEV OTP for ${mobile}: (\\d{6})`, 'g'))].pop()[1];
+    const bad = ok(await v1('POST', '/auth/verify-otp', { body: { phone: mobile, otp: code === '000000' ? '111111' : '000000' } }));
+    assert(bad.success === false && bad.errorMessage, 'wrong OTP → success false + errorMessage');
+    const t = ok(await v1('POST', '/auth/verify-otp', { body: { phone: mobile, otp: code, ...extra } }));
+    shape(t, 'AuthResult');
+    return t;
+  };
+
+  await step('v1 auth: send/verify OTP → AuthResult with role CUSTOMER, referral applied', async () => {
+    const t = await v1login('9000000030', { referralCode: S.CCode });
+    eq(t.role, 'CUSTOMER', 'role');
+    S.v1c = t.token;
+    eq(ok(await v1('POST', '/auth/logout', { body: { refreshToken: 'nope' } })).success, true, 'logout');
+  });
+  await step('v1 customer profile save + read (UserProfile)', async () => {
+    const p = ok(await v1('PUT', '/customer/profile', { token: S.v1c, body: { fullName: 'App Buyer', email: 'appbuyer@example.com', phone: '9000000030', nomineeName: 'Riya' } }));
+    shape(p, 'UserProfile');
+    eq(p.nomineeName, 'Riya', 'nominee');
+    eq((await v1('PUT', '/customer/profile', { token: S.v1c, body: { fullName: 'X', phone: '9111111111' } })).body.code, 'PHONE_CHANGE_NOT_ALLOWED', 'phone locked');
+  });
+  await step('v1 plots + plans: every Plot / BookingPlan field present and non-null', async () => {
+    const plots = ok(await v1('GET', '/customer/plots', { token: S.v1c }));
+    assert(plots.length >= 315, `${plots.length} plots`);
+    plots.forEach((p) => shape(p, 'Plot'));
+    eq(plots.find((p) => p.title === 'Plot P-001').status, 'BOOKED', 'P-001 booked');
+    eq(plots.find((p) => p.title === 'Plot P-010').totalPriceFormatted, '₹50,00,000', 'price format');
+    shape(ok(await v1('GET', `/customer/plots/${plots[9].id}`, { token: S.v1c })), 'Plot');
+    const plans = ok(await v1('GET', '/customer/booking-plans', { token: S.v1c }));
+    plans.forEach((p) => shape(p, 'BookingPlan'));
+    eq(plans.filter((p) => p.isPopular).length, 1, 'one popular plan');
+    S.v1plot = plots.find((p) => p.title === 'Plot P-010').id;
+    S.v1express = plans.find((p) => p.name === 'Express Token');
+  });
+  await step('v1 booking: none active → 204; book → Booking + checkout; pay → CONFIRMED with milestones', async () => {
+    eq((await v1('GET', '/customer/bookings/active', { token: S.v1c })).status, 204, 'no active booking');
+    const b = ok(await v1('POST', '/customer/bookings', { token: S.v1c, body: { plotId: S.v1plot, planId: S.v1express.id } }), 201);
+    shape(b, 'Booking'); b.milestones.forEach((m) => shape(m, 'Milestone'));
+    eq(b.milestones[1].status, 'IN_PROGRESS', 'payment step in progress');
+    assert(b.checkout.razorpayOrderId.startsWith('order_mock_'), 'checkout order');
+    ok(await pay(S.v1c, b.checkout, 'pay_v1_1'));
+    const a = ok(await v1('GET', '/customer/bookings/active', { token: S.v1c }));
+    shape(a, 'Booking');
+    eq(a.status, 'CONFIRMED', 'confirmed');
+    eq(a.txnId, 'pay_v1_1', 'txn id');
+    eq(a.milestones.map((m) => m.status).join(), 'COMPLETED,COMPLETED,IN_PROGRESS,UPCOMING', 'milestones');
+    eq(a.amountFormatted, '₹21,000', 'amount');
+  });
+  await step('v1 payments, documents, notifications, referrer shapes', async () => {
+    const pays = ok(await v1('GET', '/customer/payments', { token: S.v1c }));
+    pays.forEach((p) => shape(p, 'PaymentItem')); eq(pays[0].statusBadge, 'Verified', 'badge');
+    ok(await v1('GET', '/customer/documents', { token: S.v1c })).forEach((d) => shape(d, 'DocumentItem'));
+    const n = ok(await v1('GET', '/customer/notifications', { token: S.v1c }));
+    n.forEach((x) => shape(x, 'NotificationItem')); assert(n.some((x) => x.iconType === 'booking'), 'booking notification');
+    const r = ok(await v1('GET', '/customer/referrer', { token: S.v1c })); shape(r, 'ReferrerInfo');
+    eq(r.agentCode, S.CCode, 'referrer code'); eq(r.customerStatus, 'Booked', 'status');
+  });
+  await step('v1 agent (partner C): dashboard, commission ₹2,100 L1 from the app booking, tree, levels, matching, payout info', async () => {
+    shape(ok(await v1('GET', '/agent/dashboard/stats', { token: S.C })), 'DashboardStats');
+    const pp = ok(await v1('GET', '/agent/profile', { token: S.C })); shape(pp, 'PartnerProfile'); eq(pp.agentCode, S.CCode, 'code');
+    const cs = ok(await v1('GET', '/agent/commissions', { token: S.C })); cs.forEach((c) => shape(c, 'CommissionItem'));
+    const c = cs.find((x) => x.source.includes('Plot P-010'));
+    assert(c, 'commission for app booking');
+    eq([c.levelRate, c.gross, c.adminDeduction, c.tdsDeduction, c.net].join(' '), '10% ₹2,100 ₹420 ₹105 ₹1,575', 'L1 Express math');
+    shape(ok(await v1('GET', `/agent/commissions/${c.id}`, { token: S.C })), 'CommissionItem');
+    S.v1commission = c.id;
+    ok(await v1('GET', '/agent/network/levels', { token: S.C })).forEach((l) => shape(l, 'NetworkLevel'));
+    const tree = ok(await v1('GET', '/agent/network/tree', { token: S.C })); shape(tree, 'TreeNode');
+    assert(tree.children.some((ch) => ch.name === 'App Buyer'), 'app buyer in tree');
+    shape(ok(await v1('GET', '/agent/matching/summary', { token: S.C })), 'MatchingSummary');
+    shape(ok(await v1('GET', '/agent/payouts/info', { token: S.C })), 'PayoutInfo');
+    ok(await v1('GET', '/agent/notifications', { token: S.C })).forEach((x) => shape(x, 'AgentNotification'));
+    const lead = ok(await v1('POST', '/agent/leads/register', { token: S.C, body: { name: 'App Lead', phone: '9000000031', plotInterested: 'Corner' } }), 201); shape(lead, 'Lead');
+    ok(await v1('GET', '/agent/leads', { token: S.C })).forEach((l) => shape(l, 'Lead'));
+    eq((await v1('GET', '/agent/dashboard/stats', { token: S.v1c })).body.code, 'PARTNER_NOT_APPROVED', 'customer blocked');
+  });
+  await step('v1 partner onboarding: KYC → pending → admin approval list → approve → bank registered (Cashfree)', async () => {
+    const t = await v1login('9000000032');
+    ok(await v1('PUT', '/agent/profile', { token: t.token, body: { fullName: 'New Partner', email: 'np@example.com' } }));
+    const p = ok(await v1('POST', '/agent/onboarding/kyc', { token: t.token, body: { pan: 'ABCDE1234F', accountNumber: '998877665544', ifsc: 'ICIC0001234' } }), 201);
+    shape(p, 'PartnerProfile'); eq(p.status, 'Pending approval', 'pending'); eq(p.bankAccount, 'ICIC0001234 · ****5544', 'bank masked');
+    const list = ok(await v1('GET', '/admin/approvals', { token: S.admin })); list.forEach((x) => shape(x, 'AdminApprovalItem'));
+    const item = list.find((x) => x.title === 'New Partner'); assert(item && item.type === 'PARTNER_KYC', 'in approvals');
+    const ap = ok(await v1('POST', `/admin/approvals/${item.id}/approve`, { token: S.admin }));
+    eq(ap.partnerStatus, 'APPROVED', 'approved');
+    const login2 = await v1login('9000000032'); eq(login2.role, 'AGENT', 'role after approval');
+    const info = ok(await v1('GET', '/agent/payouts/info', { token: login2.token })); eq(info.isVerified, true, 'bank registered on approval');
+    eq((await v1('POST', `/admin/approvals/${item.id}/reject`, { token: S.admin })).body.code, 'INVALID_STATE', 'cannot reject approved');
+  });
+  await step('v1 admin: stats, plots, activity, payouts list + process pending payout via Cashfree', async () => {
+    const st = ok(await v1('GET', '/admin/dashboard/stats', { token: S.admin })); shape(st, 'AdminOverviewStats');
+    assert(st.plotsSold >= 1 && st.totalPlots >= 315, 'stats');
+    ok(await v1('GET', '/admin/plots', { token: S.admin })).slice(0, 3).forEach((p) => shape(p, 'Plot'));
+    ok(await v1('GET', '/admin/activity-logs', { token: S.admin })).forEach((x) => shape(x, 'AdminActivityLog'));
+    for (const a of ['hold', 'release', 'approve']) ok(await call('POST', `/admin/commissions/${a}`, { token: S.admin, body: { ids: [S.v1commission] } }), 201);
+    const reqs = ok(await v1('GET', '/admin/payouts', { token: S.admin })); reqs.forEach((x) => shape(x, 'AdminPayoutRequest'));
+    const pend = reqs.find((x) => x.id.startsWith('pending:') && x.agentCode === S.CCode); assert(pend, 'pending request for C');
+    eq(pend.amount, '₹1,575', 'amount');
+    const done = ok(await v1('POST', `/admin/payouts/${encodeURIComponent(pend.id)}/process`, { token: S.admin }));
+    eq(done.results[0].status, 'PROCESSING', 'processing');
+    eq((await v1('POST', `/admin/payouts/${encodeURIComponent(pend.id)}/process`, { token: S.admin })).body.code, 'NOTHING_TO_PAY', 'no double pay');
+    eq((await v1('GET', '/admin/dashboard/stats', { token: S.v1c })).status, 403, 'customer blocked from admin');
+  });
+
   // ---------- invariants ----------
   await step('DB invariants: ledger reconciles, no double-booked plot, no failed jobs', async () => {
     eq(sql(`select count(*) from ledger_entry where gross_paise <> admin_paise + tds_paise + net_paise`), '0', 'ledger math');

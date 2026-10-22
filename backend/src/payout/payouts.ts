@@ -122,6 +122,20 @@ export class PayoutService {
     return this.getBeneficiary(userId);
   }
 
+  /** After partner approval: register bank details submitted at onboarding (app v1). Failure leaves them to re-enter later. */
+  async registerFromApplication(userId: string) {
+    const a = await this.db.maybe<{ holderName: string; panEnc: Buffer; accountEnc: Buffer; ifsc: string }>(
+      'select holder_name, pan_enc, account_enc, ifsc from partner_application where user_id = $1',
+      [userId],
+    );
+    if (!a) return;
+    try {
+      await this.setBeneficiary(userId, { holderName: a.holderName, accountNumber: this.crypto.decrypt(a.accountEnc), ifsc: a.ifsc, pan: this.crypto.decrypt(a.panEnc) });
+    } catch (e) {
+      this.log.warn(`could not register bank details for ${userId}: ${(e as Error).message}`);
+    }
+  }
+
   getBeneficiary(userId: string) {
     return this.db.maybe(
       `select holder_name, '****' || account_last4 as account_masked, ifsc, '******' || pan_last4 as pan_masked, status, updated_at

@@ -31,7 +31,7 @@ describe('OpenAPI documentation', () => {
       return !op.summary || !codes.some((c) => c >= 200 && c < 300) || !codes.some((c) => c >= 400) || !op.tags?.length;
     });
     expect(bad.map((b) => b.key)).toEqual([]);
-    expect(ops().length).toBeGreaterThanOrEqual(74);
+    expect(ops().length).toBeGreaterThanOrEqual(111);
   });
 
   it('marks protected endpoints with bearer auth and 401, public ones with no security', () => {

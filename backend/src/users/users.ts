@@ -7,7 +7,9 @@ import { CONFIG, Config } from '../config';
 import { Db, Queryable } from '../db';
 import { AuthUser, CurrentUser } from '../common/auth';
 import { badRequest, conflict, forbidden, maskMobile, notFound, PageQuery } from '../common/http';
-import { Settings } from '../common/support';
+import { Audit, Settings } from '../common/support';
+import { NotificationService } from '../notify/notifications';
+import { PoolClient } from 'pg';
 
 export interface UserRow {
   id: string;
@@ -29,7 +31,30 @@ export const MOBILE_RE = /^[6-9]\d{9}$/;
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly db: Db) {}
+  constructor(
+    private readonly db: Db,
+    private readonly audit: Audit,
+    private readonly notify: NotificationService,
+  ) {}
+
+  /** Partner decision by an admin. Shared by the admin API and the app (v1) approvals screen. */
+  async partnerAction(c: PoolClient, actorId: string, userId: string, action: 'APPROVE' | 'REJECT' | 'SUSPEND', note?: string) {
+    const allowed = {
+      APPROVE: { from: ['PENDING', 'SUSPENDED', 'REJECTED'], to: 'APPROVED' },
+      REJECT: { from: ['PENDING'], to: 'REJECTED' },
+      SUSPEND: { from: ['APPROVED'], to: 'SUSPENDED' },
+    } as const;
+    const before = await this.db.maybe<{ partnerStatus: string; referralCode: string | null }>('select partner_status, referral_code from app_user where id = $1 for update', [userId], c);
+    if (!before) throw notFound('User');
+    const rule = allowed[action];
+    if (!(rule.from as readonly string[]).includes(before.partnerStatus)) throw conflict('INVALID_STATE', `Cannot ${action.toLowerCase()} a ${before.partnerStatus} partner`);
+    const code = rule.to === 'APPROVED' && !before.referralCode ? await this.newReferralCode(c) : before.referralCode;
+    await c.query('update app_user set partner_status = $2, referral_code = $3, updated_at = now() where id = $1', [userId, rule.to, code]);
+    await this.audit.log(c, actorId, `PARTNER_${action}`, 'user', userId, before, { partnerStatus: rule.to, note });
+    const msg = { APPROVED: 'Your partner account is approved. Start sharing your referral code!', REJECTED: 'Your partner application was not approved.', SUSPENDED: 'Your partner account has been suspended.' }[rule.to];
+    await this.notify.notify(c, userId, 'ACCOUNT', 'Partner status updated', note ? `${msg} ${note}` : msg, 'partner');
+    return { partnerStatus: rule.to, referralCode: code };
+  }
 
   async get(id: string, q?: Queryable): Promise<UserRow> {
     const u = await this.db.maybe<UserRow>(`select ${USER_COLS} from app_user where id = $1`, [id], q);

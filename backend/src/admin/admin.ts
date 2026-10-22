@@ -130,6 +130,11 @@ const CONFIG_RULES: Record<string, (v: string) => boolean> = {
   matching_bonus_bps: (v) => /^\d+$/.test(v) && +v <= 10000,
   support_phone: () => true,
   support_email: () => true,
+  project_location: (v) => v.length <= 200,
+  default_road_width: (v) => v.length <= 50,
+  default_plot_image_url: (v) => /^https:\/\//.test(v),
+  popular_tier_code: (v) => /^[A-Z0-9_]{1,20}$/.test(v),
+  payout_schedule: (v) => v.length <= 100,
 };
 
 // ---------- Controller ----------
@@ -301,24 +306,10 @@ export class AdminController {
   }
 
   @Post('users/:id/partner')
-  partnerAction(@CurrentUser() u: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() d: PartnerActionDto) {
-    const allowed: Record<PartnerActionDto['action'], { from: string[]; to: string }> = {
-      APPROVE: { from: ['PENDING', 'SUSPENDED', 'REJECTED'], to: 'APPROVED' },
-      REJECT: { from: ['PENDING'], to: 'REJECTED' },
-      SUSPEND: { from: ['APPROVED'], to: 'SUSPENDED' },
-    };
-    return this.db.tx(async (c) => {
-      const before = await this.db.maybe<{ partnerStatus: string; referralCode: string | null }>('select partner_status, referral_code from app_user where id = $1 for update', [id], c);
-      if (!before) throw notFound('User');
-      const rule = allowed[d.action];
-      if (!rule.from.includes(before.partnerStatus)) throw conflict('INVALID_STATE', `Cannot ${d.action.toLowerCase()} a ${before.partnerStatus} partner`);
-      const code = rule.to === 'APPROVED' && !before.referralCode ? await this.users.newReferralCode(c) : before.referralCode;
-      await c.query('update app_user set partner_status = $2, referral_code = $3, updated_at = now() where id = $1', [id, rule.to, code]);
-      await this.audit.log(c, u.id, `PARTNER_${d.action}`, 'user', id, before, { partnerStatus: rule.to, note: d.note });
-      const msg = { APPROVED: 'Your partner account is approved. Start sharing your referral code!', REJECTED: 'Your partner application was not approved.', SUSPENDED: 'Your partner account has been suspended.' }[rule.to]!;
-      await this.notify.notify(c, id, 'ACCOUNT', 'Partner status updated', d.note ? `${msg} ${d.note}` : msg, 'partner');
-      return { partnerStatus: rule.to, referralCode: code };
-    });
+  async partnerAction(@CurrentUser() u: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() d: PartnerActionDto) {
+    const r = await this.db.tx((c) => this.users.partnerAction(c, u.id, id, d.action, d.note));
+    if (r.partnerStatus === 'APPROVED') await this.payouts.registerFromApplication(id);
+    return r;
   }
 
   @Post('users/:id/active')

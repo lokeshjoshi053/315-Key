@@ -14,3 +14,4 @@ coverage/
 *.dmg
 .amplify-hosting/
 BUILD.txt
+*.apk
