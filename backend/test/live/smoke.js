@@ -84,6 +84,16 @@ const profile = (token, name) => call('PUT', '/me', { token, body: { name, email
     const r = await fetch(API + '/health');
     assert(r.headers.get('x-request-id'), 'missing X-Request-Id');
   });
+  await step('swagger: every operation documented, page served with title', async () => {
+    const d = ok(await call('GET', '/docs-json'));
+    const ops = Object.values(d.paths).flatMap((p) => Object.values(p));
+    assert(ops.length >= 74, `only ${ops.length} operations`);
+    const undocumented = ops.filter((o) => !o.summary || !Object.keys(o.responses).some((c) => c >= 400));
+    eq(undocumented.length, 0, 'operations without summary/errors');
+    eq(d.paths['/bookings'].post.requestBody.content['application/json'].example.termsAccepted, true, 'request example');
+    const html = await (await fetch(API + '/docs')).text();
+    assert(html.includes('315 PLOTS API'), 'docs page title');
+  });
   await step('no token → 401 with error envelope', async () => {
     const r = await call('GET', '/me');
     eq(r.status, 401, 'status');

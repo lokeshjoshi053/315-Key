@@ -6,17 +6,12 @@ import { AppModule } from './app.module';
 import { loadConfig } from './config';
 import { Db, migrate } from './db';
 import { AllExceptionsFilter, requestId } from './common/http';
+import { enrichOpenApi } from './openapi-docs';
 
 export function swaggerConfig() {
   return new DocumentBuilder()
     .setTitle('315 PLOTS API')
-    .setDescription(
-      'Backend for the 315 PLOTS mobile app. Roles: USER (customer; partner once approved) and ADMIN.\n\n' +
-        'Auth: call POST /auth/otp/request then /auth/otp/verify, click Authorize and paste the accessToken.\n\n' +
-        'Money is integer paise (amountPaise 2100000 = Rs 21,000). Lists take page/size (max 50). ' +
-        'Errors: { code, message, requestId }. Full guide: docs/API_REFERENCE.pdf.',
-    )
-    .setVersion('1.0')
+        .setVersion('1.0')
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
     .build();
 }
@@ -42,8 +37,11 @@ export async function createApp() {
   if (process.env.MIGRATE_ON_START !== 'false') await migrate(app.get(Db).pool);
 
   if (cfg.swagger) {
-    const doc = SwaggerModule.createDocument(app, swaggerConfig());
-    SwaggerModule.setup('docs', app, doc, { swaggerOptions: { persistAuthorization: true } });
+    const doc = enrichOpenApi(SwaggerModule.createDocument(app, swaggerConfig()));
+    SwaggerModule.setup('docs', app, doc, {
+      customSiteTitle: '315 PLOTS API',
+      swaggerOptions: { persistAuthorization: true, docExpansion: 'none', filter: true, tagsSorter: 'alpha', displayRequestDuration: true },
+    });
   }
   return app;
 }

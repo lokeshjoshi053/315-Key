@@ -13,7 +13,8 @@ docker compose up --build       # Postgres + S3 mock + API on :3000
 Or, without Docker for the API: `npm ci && npm run start:dev` (needs `DATABASE_URL`).
 
 - Swagger UI: http://localhost:3000/docs (spec: `/docs-json`, committed copy: `openapi.json`, regenerate with `npm run openapi`)
-- Full API guide: [`../docs/API_REFERENCE.pdf`](../docs/API_REFERENCE.pdf)
+- Full API guide: [`../docs/API_REFERENCE.pdf`](../docs/API_REFERENCE.pdf) / [`.html`](../docs/API_REFERENCE.html), generated from the same spec: `npm run openapi && npx @redocly/cli build-docs openapi.json -o ../docs/API_REFERENCE.html`
+- Endpoint docs live in `src/openapi-docs.ts`; a test fails if any route is undocumented
 - Health: http://localhost:3000/health
 - Migrations run automatically on boot (`MIGRATE_ON_START=false` to disable; `npm run migrate` to run alone).
 - In dev, `OTP_PROVIDER=log` prints the OTP in the API logs. This setting is refused when `APP_ENV=prod`.
