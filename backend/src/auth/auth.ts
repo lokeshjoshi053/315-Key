@@ -109,6 +109,7 @@ const OTP_MAX_ATTEMPTS = 5;
 export class AuthService implements OnApplicationBootstrap {
   private readonly log = new Logger('auth');
   private readonly googleJwks = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
+  private readonly firebaseJwks = createRemoteJWKSet(new URL('https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'));
 
   constructor(
     private readonly db: Db,
@@ -161,14 +162,36 @@ export class AuthService implements OnApplicationBootstrap {
         return { error: badRequest('OTP_INVALID', 'Incorrect OTP') };
       }
       await c.query('update otp_challenge set consumed_at = now() where id = $1', [ch.id]);
-      let user = await this.users.findBy('mobile', dto.mobile, c);
-      const isNew = !user;
-      if (!user) user = await this.users.create(c, { mobile: dto.mobile }, dto.referralCode, dto.leg);
-      if (!user.active) return { error: forbidden('ACCOUNT_DISABLED', 'Account is disabled') };
-      return { result: { ...(await this.tokens.issue(c, user.id, user.role, dto.deviceId)), isNewUser: isNew, profileComplete: !!user.name } };
+      return this.signInMobile(c, dto.mobile, dto);
     });
     if ('error' in r) throw r.error;
     return r.result!;
+  }
+
+  /** Firebase Phone Auth: the app verifies the number with Firebase and sends its ID token. */
+  async firebasePhone(dto: FirebasePhoneDto) {
+    const projectId = this.cfg.firebaseProjectId;
+    if (!projectId) throw new ApiException(501, 'NOT_CONFIGURED', 'Firebase phone sign-in is not configured');
+    let phone: string | undefined;
+    try {
+      const { payload } = await jwtVerify(dto.idToken, this.firebaseJwks, { issuer: `https://securetoken.google.com/${projectId}`, audience: projectId });
+      phone = payload.phone_number as string | undefined;
+    } catch {
+      throw unauthorized('FIREBASE_TOKEN_INVALID', 'Phone sign-in failed, try again');
+    }
+    const mobile = /^\+91([6-9]\d{9})$/.exec(phone ?? '')?.[1];
+    if (!mobile) throw badRequest('PHONE_NOT_SUPPORTED', 'Use an Indian mobile number');
+    const r = await this.db.tx((c) => this.signInMobile(c, mobile, dto));
+    if ('error' in r) throw r.error;
+    return r.result!;
+  }
+
+  private async signInMobile(c: Queryable, mobile: string, o: { referralCode?: string; leg?: 'L' | 'R'; deviceId?: string }) {
+    let user = await this.users.findBy('mobile', mobile, c);
+    const isNew = !user;
+    if (!user) user = await this.users.create(c, { mobile }, o.referralCode, o.leg);
+    if (!user.active) return { error: forbidden('ACCOUNT_DISABLED', 'Account is disabled') };
+    return { result: { ...(await this.tokens.issue(c, user.id, user.role, o.deviceId)), isNewUser: isNew, profileComplete: !!user.name } };
   }
 
   async google(dto: GoogleDto) {
@@ -221,6 +244,8 @@ export class GoogleDto {
   @IsOptional() @IsString() @MaxLength(200) deviceId?: string;
 }
 
+export class FirebasePhoneDto extends GoogleDto {}
+
 export class RefreshDto {
   @IsString() @IsNotEmpty() refreshToken: string;
 }
@@ -254,6 +279,13 @@ export class AuthController {
   @HttpCode(200)
   google(@Body() dto: GoogleDto) {
     return this.auth.google(dto);
+  }
+
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Post('firebase')
+  @HttpCode(200)
+  firebase(@Body() dto: FirebasePhoneDto) {
+    return this.auth.firebasePhone(dto);
   }
 
   @Post('refresh')

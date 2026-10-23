@@ -182,6 +182,10 @@ export class V1VerifyOtpDto {
 export class V1GoogleDto {
   @IsString() @IsNotEmpty() idToken: string;
 }
+export class V1FirebaseDto {
+  @IsString() @IsNotEmpty() idToken: string;
+  @IsOptional() @IsString() @MaxLength(20) referralCode?: string;
+}
 export class V1LogoutDto {
   @IsOptional() @IsString() refreshToken?: string;
 }
@@ -269,6 +273,17 @@ export class AppV1AuthController {
   async google(@Body() d: V1GoogleDto, @Res({ passthrough: true }) res: Response) {
     try {
       return this.result(await this.auth.google({ idToken: d.idToken }));
+    } catch (e) {
+      return this.fail(e, res);
+    }
+  }
+
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Post('firebase-login')
+  @HttpCode(200)
+  async firebase(@Body() d: V1FirebaseDto, @Res({ passthrough: true }) res: Response) {
+    try {
+      return this.result(await this.auth.firebasePhone({ idToken: d.idToken, referralCode: d.referralCode }));
     } catch (e) {
       return this.fail(e, res);
     }

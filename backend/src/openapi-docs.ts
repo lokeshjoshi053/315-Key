@@ -210,6 +210,13 @@ export const OPS: Record<string, OpDoc> = {
     ok: { description: 'Signed in', example: { ...tokens, isNewUser: false, profileComplete: true } },
     errors: [[401, 'GOOGLE_TOKEN_INVALID', 'Google sign-in failed'], [401, 'GOOGLE_EMAIL_UNVERIFIED', 'Google email is not verified'], [501, 'NOT_CONFIGURED', 'Google sign-in is not configured']],
   },
+  'POST /auth/firebase': {
+    public: true, status: 200, summary: 'Sign in with Firebase Phone Auth',
+    description: 'The app verifies the mobile number with Firebase (Firebase sends and checks the SMS code), then sends the Firebase ID token here. Creates the account on first sign-in. Only +91 numbers are accepted.',
+    body: { idToken: 'eyJhbGciOiJSUzI1NiIsImtpZCI6…', referralCode: 'P7KQ2XM' },
+    ok: { description: 'Signed in', example: { ...tokens, isNewUser: false, profileComplete: true } },
+    errors: [[401, 'FIREBASE_TOKEN_INVALID', 'Phone sign-in failed, try again'], [400, 'PHONE_NOT_SUPPORTED', 'Use an Indian mobile number'], [403, 'ACCOUNT_DISABLED', 'Account is disabled'], [501, 'NOT_CONFIGURED', 'Firebase phone sign-in is not configured']],
+  },
   'POST /auth/refresh': {
     public: true, status: 200, summary: 'Refresh tokens',
     description: 'Exchanges a refresh token for a new access + refresh token pair; the old refresh token stops working. Run one refresh at a time: reusing an old refresh token signs the user out on every device.',

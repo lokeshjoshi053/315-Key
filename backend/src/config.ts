@@ -21,6 +21,7 @@ export function loadConfig() {
     swagger: opt('SWAGGER_ENABLED', 'true') === 'true',
     otpProvider: opt('OTP_PROVIDER', 'log') as 'log' | 'msg91',
     msg91: { authKey: opt('MSG91_AUTH_KEY'), templateId: opt('MSG91_TEMPLATE_ID') },
+    firebaseProjectId: opt('FIREBASE_PROJECT_ID'), // Firebase Phone Auth; falls back to project_id in FCM_CREDENTIALS_JSON
     googleClientIds: opt('GOOGLE_CLIENT_IDS').split(',').map((s) => s.trim()).filter(Boolean),
     razorpay: {
       baseUrl: opt('RAZORPAY_BASE_URL', 'https://api.razorpay.com/v1'),
@@ -44,6 +45,13 @@ export function loadConfig() {
     fcmCredentialsJson: opt('FCM_CREDENTIALS_JSON'), // the key JSON itself; preferred on ECS (from SSM)
     jobsEnabled: opt('JOBS_ENABLED', 'true') === 'true',
   };
+  if (!c.firebaseProjectId && c.fcmCredentialsJson) {
+    try {
+      c.firebaseProjectId = JSON.parse(c.fcmCredentialsJson).project_id ?? '';
+    } catch {
+      // bad FCM JSON is reported by the push sender
+    }
+  }
   if (c.jwtSecret.length < 32) throw new Error('JWT_SECRET must be at least 32 characters');
   if (c.env === 'prod' && c.otpProvider === 'log') throw new Error('OTP_PROVIDER=log is not allowed in prod');
   return c;
