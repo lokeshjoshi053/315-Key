@@ -348,6 +348,131 @@
         "security": []
       }
     },
+    "/auth/firebase": {
+      "post": {
+        "operationId": "AuthController_firebase",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FirebasePhoneDto"
+              },
+              "example": {
+                "idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6…",
+                "referralCode": "P7KQ2XM"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in",
+            "content": {
+              "application/json": {
+                "example": {
+                  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZjFj…",
+                  "refreshToken": "q8V2c1sY9…",
+                  "expiresIn": 900,
+                  "isNewUser": false,
+                  "profileComplete": true
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: PHONE_NOT_SUPPORTED, VALIDATION_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "PHONE_NOT_SUPPORTED": {
+                    "value": {
+                      "code": "PHONE_NOT_SUPPORTED",
+                      "message": "Use an Indian mobile number",
+                      "requestId": "3f0c9b2e-1a4d-4c8b-9e7f-2d1a6b5c4e30"
+                    }
+                  },
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "code": "VALIDATION_FAILED",
+                      "message": "A field is missing or invalid; message lists the fields",
+                      "requestId": "3f0c9b2e-1a4d-4c8b-9e7f-2d1a6b5c4e30"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in or token expired: FIREBASE_TOKEN_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "FIREBASE_TOKEN_INVALID": {
+                    "value": {
+                      "code": "FIREBASE_TOKEN_INVALID",
+                      "message": "Phone sign-in failed, try again",
+                      "requestId": "3f0c9b2e-1a4d-4c8b-9e7f-2d1a6b5c4e30"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed: ACCOUNT_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "ACCOUNT_DISABLED": {
+                    "value": {
+                      "code": "ACCOUNT_DISABLED",
+                      "message": "Account is disabled",
+                      "requestId": "3f0c9b2e-1a4d-4c8b-9e7f-2d1a6b5c4e30"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "Not configured: NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "NOT_CONFIGURED": {
+                    "value": {
+                      "code": "NOT_CONFIGURED",
+                      "message": "Firebase phone sign-in is not configured",
+                      "requestId": "3f0c9b2e-1a4d-4c8b-9e7f-2d1a6b5c4e30"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Sign in with Firebase Phone Auth",
+        "description": "The app verifies the mobile number with Firebase (Firebase sends and checks the SMS code), then sends the Firebase ID token here. Creates the account on first sign-in. Only +91 numbers are accepted.",
+        "security": []
+      }
+    },
     "/auth/refresh": {
       "post": {
         "operationId": "AuthController_refresh",
@@ -9366,6 +9491,70 @@
         "security": []
       }
     },
+    "/api/v1/auth/firebase-login": {
+      "post": {
+        "operationId": "AppV1AuthController_firebase",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V1FirebaseDto"
+              },
+              "example": {
+                "idToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6…",
+                "referralCode": "P7KQ2XM"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AuthResult",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZjFj…",
+                  "role": "CUSTOMER",
+                  "errorMessage": null,
+                  "refreshToken": "q8V2c1sY9…",
+                  "expiresIn": 900,
+                  "isNewUser": true,
+                  "profileComplete": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                },
+                "examples": {
+                  "VALIDATION_FAILED": {
+                    "value": {
+                      "code": "VALIDATION_FAILED",
+                      "message": "A field is missing or invalid; message lists the fields",
+                      "requestId": "3f0c9b2e-1a4d-4c8b-9e7f-2d1a6b5c4e30"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "App v1"
+        ],
+        "summary": "App: Firebase phone sign-in",
+        "description": "Call after Firebase PhoneAuthProvider signs the user in: send FirebaseUser.getIdToken(). Firebase sends the SMS, so send-otp/verify-otp are not used. Failures → success=false with errorMessage.",
+        "security": []
+      }
+    },
     "/api/v1/auth/logout": {
       "post": {
         "operationId": "AppV1AuthController_logout",
@@ -12645,6 +12834,32 @@
           "idToken"
         ]
       },
+      "FirebasePhoneDto": {
+        "type": "object",
+        "properties": {
+          "idToken": {
+            "type": "string"
+          },
+          "referralCode": {
+            "type": "string",
+            "maxLength": 20
+          },
+          "leg": {
+            "type": "string",
+            "enum": [
+              "L",
+              "R"
+            ]
+          },
+          "deviceId": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "idToken"
+        ]
+      },
       "RefreshDto": {
         "type": "object",
         "properties": {
@@ -13250,6 +13465,21 @@
         "properties": {
           "idToken": {
             "type": "string"
+          }
+        },
+        "required": [
+          "idToken"
+        ]
+      },
+      "V1FirebaseDto": {
+        "type": "object",
+        "properties": {
+          "idToken": {
+            "type": "string"
+          },
+          "referralCode": {
+            "type": "string",
+            "maxLength": 20
           }
         },
         "required": [
